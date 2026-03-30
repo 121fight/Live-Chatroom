@@ -1,6 +1,7 @@
 const APP_ID = "3f3b61c4b24c4772b3e41c4f8e75f61c";
 const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
 let localAudioTrack = null;
+let isMicMutedLocal = true; // Track mute state perfectly
 
 client.enableAudioVolumeIndicator();
 
@@ -27,8 +28,17 @@ window.AgoraVoice = {
 
     publishAudio: async function() {
         try {
-            localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+            // Echo aur Noise Hatane ki Setting (AEC & ANS)
+            localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack({
+                encoderConfig: "high_quality",
+                AEC: true, ANS: true, AGC: true
+            });
             await client.publish([localAudioTrack]);
+            
+            // Join karte hi mic Muted rahega
+            isMicMutedLocal = true;
+            await localAudioTrack.setMuted(true); 
+            
             return true;
         } catch (error) {
             console.error("Publish failed:", error);
@@ -47,15 +57,18 @@ window.AgoraVoice = {
 
     toggleMic: async function() {
         if (!localAudioTrack) return true; 
-        const isMuted = !localAudioTrack.isPlaying;
-        await localAudioTrack.setMuted(!isMuted);
-        return !isMuted; // return new state
+        
+        // Status ko flip karna (Agar Mute hai toh Unmute, Unmute hai toh Mute)
+        isMicMutedLocal = !isMicMutedLocal;
+        await localAudioTrack.setMuted(isMicMutedLocal);
+        
+        return isMicMutedLocal; // Returns True (Red) if muted, False (Green) if unmuted
     },
 
     forceMuteAudio: async function() {
-        if (localAudioTrack && localAudioTrack.isPlaying) {
+        if (localAudioTrack) {
+            isMicMutedLocal = true;
             await localAudioTrack.setMuted(true);
-            return true;
         }
         return true;
     },
