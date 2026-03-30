@@ -19,7 +19,6 @@ window.FirebaseDB = {
         let seats = {};
         for(let i=0; i<8; i++) { seats[i] = { isOccupied: false }; }
         
-        // Host automatically assigned Seat 0
         seats[0] = {
             isOccupied: true, userId: hostUser.id, username: hostUser.username,
             avatar: hostUser.avatar, isMuted: true, forceMuted: false
@@ -71,7 +70,6 @@ window.FirebaseDB = {
         await db.ref(`rooms/${roomId}/seats/${seatIndex}/isMuted`).set(isMuted);
     },
 
-    // Admin Controls
     adminKickUser: async function(roomId, seatIndex) {
         await db.ref(`rooms/${roomId}/seats/${seatIndex}`).set({ isOccupied: false });
     },
@@ -79,7 +77,7 @@ window.FirebaseDB = {
     adminMuteUser: async function(roomId, seatIndex) {
         await db.ref(`rooms/${roomId}/seats/${seatIndex}`).update({
             isMuted: true,
-            forceMuted: Date.now() // Timestamp change triggers auto-mute for that user
+            forceMuted: Date.now() 
         });
     },
 
