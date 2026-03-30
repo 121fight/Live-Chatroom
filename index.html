@@ -32,7 +32,7 @@
     <div id="admin-modal" class="modal flex-center hidden">
         <div class="modal-content admin-box">
             <h3 id="admin-target-name">User Options</h3>
-            <button id="admin-mute-btn" class="btn warning-btn" onclick="app.executeAdminMute()">🔇 Mute User</button>
+            <button id="admin-mute-btn" class="btn warning-btn" onclick="app.executeAdminMute()">🔇 Force Mute</button>
             <button id="admin-kick-btn" class="btn danger-btn" onclick="app.executeAdminKick()">🚷 Kick from Mic</button>
             <button class="btn secondary-btn" onclick="app.closeAdminModal()">Cancel</button>
         </div>
@@ -50,7 +50,6 @@
         <div class="content-area">
             <div class="trending-section">
                 <h3>Trending Now <i class="fas fa-fire" style="color: #ff5e00;"></i></h3>
-                <!-- Minimized active room indicator -->
                 <div id="minimized-widget" class="hidden" onclick="app.restoreRoom()">
                     <div class="widget-content">
                         <div class="pulse-ring"></div>
@@ -77,9 +76,8 @@
     <!-- Room Screen -->
     <div id="room-screen" class="screen">
         
-        <!-- YAHAN VIDEO/PHOTO BACKGROUND HAI -->
-        <!-- Agar video kaam na kare, toh poster "bg.jpg" photo dikhayega -->
-        <video id="room-bg" src="bg.mp4" poster="bg.jpg" autoplay loop muted playsinline></video>
+        <!-- YAHAN DIRECT INTERNET SE PHOTO LAGAI HAI (Aapko upload nahi karni padegi) -->
+        <img id="room-bg" src="https://images.unsplash.com/photo-1557682250-33bd709cbe85?q=80&w=1080&auto=format&fit=crop" alt="background">
         
         <!-- UI Wrapper for Glassmorphism -->
         <div class="room-ui-wrapper">
