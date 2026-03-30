@@ -2,15 +2,11 @@ const app = {
     user: null, currentRoomId: null, mySeatIndex: null, isHost: false, hostId: null, adminTargetSeat: null,
 
     init: function() {
-        this.checkAuth();
-        this.setupEventListeners();
-        this.disableBackButton();
-        
+        this.checkAuth(); this.setupEventListeners(); this.disableBackButton();
         this.playBeep = (freq = 600) => {
             try {
                 const ctx = new (window.AudioContext || window.webkitAudioContext)();
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
+                const osc = ctx.createOscillator(); const gain = ctx.createGain();
                 osc.connect(gain); gain.connect(ctx.destination);
                 osc.frequency.value = freq; osc.type = "sine";
                 gain.gain.setValueAtTime(0.05, ctx.currentTime);
@@ -18,7 +14,6 @@ const app = {
                 osc.start(); osc.stop(ctx.currentTime + 0.3);
             } catch(e){}
         };
-
         FirebaseDB.listenToRooms((rooms) => { this.renderRoomsList(rooms); });
     },
 
@@ -28,9 +23,7 @@ const app = {
             this.user = JSON.parse(savedUser);
             document.getElementById('auth-modal').classList.add('hidden');
             document.getElementById('my-avatar').src = this.user.avatar;
-        } else {
-            document.getElementById('auth-modal').classList.remove('hidden');
-        }
+        } else { document.getElementById('auth-modal').classList.remove('hidden'); }
     },
 
     setupEventListeners: function() {
@@ -47,13 +40,9 @@ const app = {
         });
 
         document.getElementById('chat-form').addEventListener('submit', (e) => {
-            e.preventDefault();
-            const input = document.getElementById('chat-input');
+            e.preventDefault(); const input = document.getElementById('chat-input');
             const text = input.value.trim();
-            if (text && this.currentRoomId) {
-                FirebaseDB.sendMessage(this.currentRoomId, this.user, text);
-                input.value = '';
-            }
+            if (text && this.currentRoomId) { FirebaseDB.sendMessage(this.currentRoomId, this.user, text); input.value = ''; }
         });
     },
 
@@ -69,17 +58,13 @@ const app = {
 
     showToast: function(msg) {
         const container = document.getElementById('toast-container');
-        const toast = document.createElement('div');
-        toast.className = 'toast'; toast.innerText = msg;
-        container.appendChild(toast);
-        setTimeout(() => toast.remove(), 3000);
+        const toast = document.createElement('div'); toast.className = 'toast'; toast.innerText = msg;
+        container.appendChild(toast); setTimeout(() => toast.remove(), 3000);
     },
 
     renderRoomsList: function(rooms) {
-        const list = document.getElementById('rooms-list');
-        list.innerHTML = '';
+        const list = document.getElementById('rooms-list'); list.innerHTML = '';
         if (rooms.length === 0) { list.innerHTML = '<div class="loading-text" style="text-align:center; color:#a0a4b8;">No active rooms. Create one!</div>'; return; }
-
         rooms.forEach(room => {
             if(!room) return;
             const card = document.createElement('div'); card.className = 'room-card';
@@ -94,7 +79,6 @@ const app = {
         if (!title) return;
         this.showToast("Creating room...");
         const roomId = await FirebaseDB.createRoom(title, this.user);
-        this.mySeatIndex = 0; 
         this.enterRoom(roomId, title, this.user.id, true);
     },
 
@@ -108,9 +92,11 @@ const app = {
         this.currentRoomId = roomId; this.hostId = hostId; this.isHost = (this.user.id === hostId);
         this.playBeep(800);
         
-        await AgoraVoice.joinChannel(roomId, this.user.id);
+        // Agar Agora join fail hoga toh error batayega
+        const isJoined = await AgoraVoice.joinChannel(roomId, this.user.id);
+        if(!isJoined) return;
+
         await FirebaseDB.joinRoom(roomId);
-        
         if (isCreating) { await this.joinMic(0); }
 
         FirebaseDB.listenToRoomData(roomId, (data) => {
@@ -135,8 +121,7 @@ const app = {
                 await AgoraVoice.forceMuteAudio();
                 await FirebaseDB.updateMuteState(this.currentRoomId, this.mySeatIndex, true);
                 const micBtn = document.getElementById('mic-toggle-btn');
-                micBtn.classList.remove('active');
-                micBtn.innerHTML = '<i class="fas fa-microphone-slash"></i>';
+                micBtn.classList.remove('active'); micBtn.innerHTML = '<i class="fas fa-microphone-slash"></i>';
                 firebase.database().ref(`rooms/${this.currentRoomId}/seats/${this.mySeatIndex}/forceMuted`).set(false);
                 this.showToast("Admin muted you.");
             }
@@ -154,8 +139,7 @@ const app = {
                     this.mySeatIndex = i;
                     document.getElementById('mic-toggle-btn').classList.remove('hidden');
                 }
-                div.className = `seat ${seat.isMuted ? 'muted' : ''}`;
-                div.dataset.uid = seat.userId;
+                div.className = `seat ${seat.isMuted ? 'muted' : ''}`; div.dataset.uid = seat.userId;
                 let hostBadge = seat.userId === this.hostId ? `<div class="seat-host-badge">HOST</div>` : '';
                 div.innerHTML = `${hostBadge}<div class="seat-avatar"><img src="${seat.avatar}"></div><div class="seat-name">${seat.username}</div>`;
                 div.onclick = () => this.handleSeatClick(i, seat);
@@ -170,9 +154,8 @@ const app = {
     },
 
     handleSeatClick: function(seatIndex, seatData) {
-        if (seatData.userId === this.user.id) {
-            this.leaveMic(); 
-        } else if (this.isHost) {
+        if (seatData.userId === this.user.id) { this.leaveMic(); } 
+        else if (this.isHost) {
             this.adminTargetSeat = seatIndex;
             document.getElementById('admin-target-name').innerText = `Manage: ${seatData.username}`;
             document.getElementById('admin-modal').classList.remove('hidden');
@@ -185,9 +168,9 @@ const app = {
 
     joinMic: async function(seatIndex) {
         if(this.mySeatIndex !== null) return;
-        this.showToast("Connecting...");
-        const success = await AgoraVoice.publishAudio();
+        this.showToast("Connecting Mic...");
         
+        const success = await AgoraVoice.publishAudio();
         if (success) {
             await FirebaseDB.takeSeat(this.currentRoomId, seatIndex, this.user);
             this.mySeatIndex = seatIndex;
@@ -195,6 +178,8 @@ const app = {
             micBtn.classList.remove('hidden', 'active');
             micBtn.innerHTML = '<i class="fas fa-microphone-slash"></i>';
             this.showToast("Live!");
+        } else {
+            this.showToast("Mic connect nahi ho paya.");
         }
     },
 
@@ -209,17 +194,14 @@ const app = {
 
     toggleMic: async function() {
         if(this.mySeatIndex === null) return;
-        
         const isMuted = await AgoraVoice.toggleMic();
         await FirebaseDB.updateMuteState(this.currentRoomId, this.mySeatIndex, isMuted);
         
         const micBtn = document.getElementById('mic-toggle-btn');
         if (isMuted) {
-            micBtn.classList.remove('active');
-            micBtn.innerHTML = '<i class="fas fa-microphone-slash"></i>';
+            micBtn.classList.remove('active'); micBtn.innerHTML = '<i class="fas fa-microphone-slash"></i>';
         } else {
-            micBtn.classList.add('active');
-            micBtn.innerHTML = '<i class="fas fa-microphone"></i>';
+            micBtn.classList.add('active'); micBtn.innerHTML = '<i class="fas fa-microphone"></i>';
         }
     },
 
@@ -227,8 +209,7 @@ const app = {
         const chatArea = document.getElementById('chat-messages');
         const div = document.createElement('div'); div.className = 'msg';
         div.innerHTML = `<span class="msg-user">${msg.username}:</span> <span class="msg-text">${msg.text}</span>`;
-        chatArea.appendChild(div);
-        chatArea.parentElement.scrollTop = chatArea.parentElement.scrollHeight;
+        chatArea.appendChild(div); chatArea.parentElement.scrollTop = chatArea.parentElement.scrollHeight;
     },
 
     sendEmoji: function(emoji) { if (this.currentRoomId) FirebaseDB.sendMessage(this.currentRoomId, this.user, emoji); },
