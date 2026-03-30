@@ -12,8 +12,8 @@ window.AgoraVoice = {
             
             client.on("user-published", async (user, mediaType) => {
                 await client.subscribe(user, mediaType);
-                if (mediaType === "audio") {
-                    user.audioTrack.play();
+                if (mediaType === "audio") { 
+                    user.audioTrack.play(); 
                 }
             });
 
@@ -26,66 +26,57 @@ window.AgoraVoice = {
                     }
                 });
             });
+            return true;
         } catch (error) { 
-            console.error("Agora join failed:", error); 
+            console.error("Agora join failed:", error);
+            alert("Agora Server Error: Connection fail ho gaya. Kripya check karein ki aapka Agora project 'Testing Mode' (Without Certificate) par hai ya nahi.");
+            return false;
         }
     },
 
     publishAudio: async function() {
+        // Step 1: Pehle sirf Mic access check karenge
         try {
-            // Simple mic setup jo har mobile pe chalega
-            localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack({
-                encoderConfig: "high_quality"
-            });
-            
-            await client.publish(localAudioTrack);
-            
+            localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack({ encoderConfig: "high_quality" });
+        } catch (error) {
+            console.error("Mic Access Error:", error);
+            alert("Mic Error: Permission ON hai par Mic kaam nahi kar raha. Kripya background me chal rahe Call ya Screen Recorder ko band karein.");
+            return false;
+        }
+
+        // Step 2: Mic aane ke baad aawaz ko server par bhejenge
+        try {
+            await client.publish([localAudioTrack]);
             isMicMutedLocal = true;
             await localAudioTrack.setMuted(true); 
-            
             return true;
         } catch (error) {
-            console.error("Mic Error:", error);
-            alert("Mic Permission Denied! Browser setting me mic allow karein.");
+            console.error("Publish Error:", error);
+            alert("Voice Publish Error: " + error.message);
             return false;
         }
     },
 
     unpublishAudio: async function() {
         if (localAudioTrack) {
-            try {
-                await client.unpublish(localAudioTrack);
-            } catch(e) { console.warn(e); }
-            
-            try {
-                localAudioTrack.stop();
-                localAudioTrack.close();
-            } catch(e) { console.warn(e); }
-            
+            try { await client.unpublish([localAudioTrack]); } catch(e) {}
+            try { localAudioTrack.stop(); localAudioTrack.close(); } catch(e) {}
             localAudioTrack = null;
         }
     },
 
     toggleMic: async function() {
-        if (!localAudioTrack) {
-            alert("Mic error! Dubara mic par join karein.");
-            return true; 
-        }
+        if (!localAudioTrack) return true; 
         try {
             isMicMutedLocal = !isMicMutedLocal;
             await localAudioTrack.setMuted(isMicMutedLocal);
             return isMicMutedLocal;
-        } catch(e) {
-            return true;
-        }
+        } catch(e) { return true; }
     },
 
     forceMuteAudio: async function() {
         if (localAudioTrack) {
-            try {
-                isMicMutedLocal = true;
-                await localAudioTrack.setMuted(true);
-            } catch(e) {}
+            try { isMicMutedLocal = true; await localAudioTrack.setMuted(true); } catch(e) {}
         }
         return true;
     },
