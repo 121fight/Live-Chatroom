@@ -4,7 +4,7 @@ const app = {
     mySeatIndex: null,
     isHost: false,
     hostId: null,
-    adminTargetSeat: null, // Used for kicking/muting
+    adminTargetSeat: null,
 
     init: function() {
         this.checkAuth();
@@ -140,17 +140,14 @@ const app = {
     },
 
     handleSeatUpdates: async function(seatsData) {
-        // Auto-Kick & Auto-Mute Logic if Admin takes action
         if (this.mySeatIndex !== null) {
             const mySeat = seatsData[this.mySeatIndex];
-            // If my seat is suddenly empty or taken by someone else
             if (!mySeat || !mySeat.isOccupied || mySeat.userId !== this.user.id) {
                 this.showToast("Admin has kicked you from the mic.");
                 await AgoraVoice.unpublishAudio();
                 this.mySeatIndex = null;
                 document.getElementById('mic-toggle-btn').classList.add('hidden');
             } 
-            // If admin forced a mute on my seat
             else if (mySeat.forceMuted) {
                 await AgoraVoice.forceMuteAudio();
                 await FirebaseDB.updateMuteState(this.currentRoomId, this.mySeatIndex, true);
@@ -159,7 +156,6 @@ const app = {
                 micBtn.classList.remove('active');
                 micBtn.innerHTML = '<i class="fas fa-microphone-slash"></i>';
                 
-                // Clear the force flag so it doesn't loop
                 firebase.database().ref(`rooms/${this.currentRoomId}/seats/${this.mySeatIndex}/forceMuted`).set(false);
                 this.showToast("Admin muted your mic.");
             }
@@ -208,16 +204,14 @@ const app = {
 
     handleSeatClick: function(seatIndex, seatData) {
         if (seatData.userId === this.user.id) {
-            this.leaveMic(); // Clicked on myself -> leave
+            this.leaveMic(); 
         } else if (this.isHost) {
-            // I am Host, clicked on someone else -> Open Admin Panel
             this.adminTargetSeat = seatIndex;
             document.getElementById('admin-target-name').innerText = `Manage: ${seatData.username}`;
             document.getElementById('admin-modal').classList.remove('hidden');
         }
     },
 
-    // Admin Functions
     closeAdminModal: function() {
         document.getElementById('admin-modal').classList.add('hidden');
         this.adminTargetSeat = null;
@@ -313,7 +307,6 @@ const app = {
         await AgoraVoice.leaveChannel();
         FirebaseDB.stopListening(this.currentRoomId);
         
-        // If Host exits, maybe destroy room or just leave seat
         await FirebaseDB.leaveRoom(this.currentRoomId, this.user.id, this.mySeatIndex);
         
         this.currentRoomId = null; this.mySeatIndex = null; this.isHost = false; this.hostId = null;
