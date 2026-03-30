@@ -1,29 +1,10 @@
 const app = {
-    user: null,
-    currentRoomId: null,
-    mySeatIndex: null,
-    isHost: false,
-    hostId: null,
-    adminTargetSeat: null,
+    user: null, currentRoomId: null, mySeatIndex: null, isHost: false, hostId: null, adminTargetSeat: null,
 
     init: function() {
         this.checkAuth();
         this.setupEventListeners();
         this.disableBackButton();
-        
-        this.playBeep = (freq = 600) => {
-            try {
-                const ctx = new (window.AudioContext || window.webkitAudioContext)();
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.connect(gain); gain.connect(ctx.destination);
-                osc.frequency.value = freq; osc.type = "sine";
-                gain.gain.setValueAtTime(0.05, ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
-                osc.start(); osc.stop(ctx.currentTime + 0.3);
-            } catch(e){}
-        };
-
         FirebaseDB.listenToRooms((rooms) => { this.renderRoomsList(rooms); });
     },
 
@@ -83,23 +64,13 @@ const app = {
     renderRoomsList: function(rooms) {
         const list = document.getElementById('rooms-list');
         list.innerHTML = '';
-        if (rooms.length === 0) {
-            list.innerHTML = '<div class="loading-text" style="text-align:center; color:#a0a4b8;">No active rooms. Create one!</div>';
-            return;
-        }
+        if (rooms.length === 0) { list.innerHTML = '<div class="loading-text" style="text-align:center; color:#a0a4b8;">No active rooms. Create one!</div>'; return; }
 
         rooms.forEach(room => {
             if(!room) return;
-            const card = document.createElement('div');
-            card.className = 'room-card';
+            const card = document.createElement('div'); card.className = 'room-card';
             card.onclick = () => this.enterRoom(room.id, room.title, room.hostId);
-            card.innerHTML = `
-                <div class="room-details">
-                    <h4>${room.title}</h4>
-                    <p><i class="fas fa-headphones"></i> ${room.listeners} listening</p>
-                </div>
-                <button class="join-btn">Join</button>
-            `;
+            card.innerHTML = `<div class="room-details"><h4>${room.title}</h4><p><i class="fas fa-headphones"></i> ${room.listeners} listening</p></div><button class="join-btn">Join</button>`;
             list.appendChild(card);
         });
     },
@@ -120,11 +91,8 @@ const app = {
         document.getElementById('current-room-title').innerText = title;
         document.getElementById('chat-messages').innerHTML = '';
         
-        this.currentRoomId = roomId;
-        this.hostId = hostId;
-        this.isHost = (this.user.id === hostId);
+        this.currentRoomId = roomId; this.hostId = hostId; this.isHost = (this.user.id === hostId);
         
-        this.playBeep(800);
         await AgoraVoice.joinChannel(roomId, this.user.id);
         await FirebaseDB.joinRoom(roomId);
         
@@ -164,12 +132,10 @@ const app = {
     },
 
     renderSeatsUI: function(seatsData) {
-        const grid = document.getElementById('mic-grid');
-        grid.innerHTML = '';
+        const grid = document.getElementById('mic-grid'); grid.innerHTML = '';
         
         for (let i = 0; i < 8; i++) {
-            const seat = seatsData[i];
-            const div = document.createElement('div');
+            const seat = seatsData[i]; const div = document.createElement('div');
             
             if (seat && seat.isOccupied) {
                 if (seat.userId === this.user.id) {
@@ -179,15 +145,9 @@ const app = {
 
                 div.className = `seat ${seat.isMuted ? 'muted' : ''}`;
                 div.dataset.uid = seat.userId;
-                
                 let hostBadge = seat.userId === this.hostId ? `<div class="seat-host-badge">HOST</div>` : '';
 
-                div.innerHTML = `
-                    ${hostBadge}
-                    <div class="seat-avatar"><img src="${seat.avatar}" alt="${seat.username}"></div>
-                    <div class="seat-name">${seat.username}</div>
-                `;
-                
+                div.innerHTML = `${hostBadge}<div class="seat-avatar"><img src="${seat.avatar}" alt="${seat.username}"></div><div class="seat-name">${seat.username}</div>`;
                 div.onclick = () => this.handleSeatClick(i, seat);
             } else {
                 div.className = 'seat empty';
@@ -197,9 +157,7 @@ const app = {
             grid.appendChild(div);
         }
 
-        if (this.mySeatIndex === null) {
-            document.getElementById('mic-toggle-btn').classList.add('hidden');
-        }
+        if (this.mySeatIndex === null) { document.getElementById('mic-toggle-btn').classList.add('hidden'); }
     },
 
     handleSeatClick: function(seatIndex, seatData) {
@@ -212,26 +170,9 @@ const app = {
         }
     },
 
-    closeAdminModal: function() {
-        document.getElementById('admin-modal').classList.add('hidden');
-        this.adminTargetSeat = null;
-    },
-
-    executeAdminMute: async function() {
-        if (this.adminTargetSeat !== null) {
-            await FirebaseDB.adminMuteUser(this.currentRoomId, this.adminTargetSeat);
-            this.showToast("User muted.");
-        }
-        this.closeAdminModal();
-    },
-
-    executeAdminKick: async function() {
-        if (this.adminTargetSeat !== null) {
-            await FirebaseDB.adminKickUser(this.currentRoomId, this.adminTargetSeat);
-            this.showToast("User kicked from mic.");
-        }
-        this.closeAdminModal();
-    },
+    closeAdminModal: function() { document.getElementById('admin-modal').classList.add('hidden'); this.adminTargetSeat = null; },
+    executeAdminMute: async function() { if (this.adminTargetSeat !== null) { await FirebaseDB.adminMuteUser(this.currentRoomId, this.adminTargetSeat); this.showToast("User muted."); } this.closeAdminModal(); },
+    executeAdminKick: async function() { if (this.adminTargetSeat !== null) { await FirebaseDB.adminKickUser(this.currentRoomId, this.adminTargetSeat); this.showToast("User kicked from mic."); } this.closeAdminModal(); },
 
     joinMic: async function(seatIndex) {
         if(this.mySeatIndex !== null) { this.showToast("You are already on a mic."); return; }
@@ -243,12 +184,7 @@ const app = {
             const micBtn = document.getElementById('mic-toggle-btn');
             micBtn.classList.remove('hidden', 'active');
             micBtn.innerHTML = '<i class="fas fa-microphone-slash"></i>';
-            
-            await AgoraVoice.toggleMic(); 
-            await FirebaseDB.updateMuteState(this.currentRoomId, this.mySeatIndex, true);
-        } else {
-            this.showToast("Microphone permission denied.");
-        }
+        } else { this.showToast("Microphone permission denied."); }
     },
 
     leaveMic: async function() {
@@ -262,51 +198,40 @@ const app = {
 
     toggleMic: async function() {
         if(this.mySeatIndex === null) return;
+        
+        // This toggles Agora hardware mic
         const isMuted = await AgoraVoice.toggleMic();
+        
+        // Update Firebase to show UI globally
         await FirebaseDB.updateMuteState(this.currentRoomId, this.mySeatIndex, isMuted);
         
+        // Update Local Button UI
         const micBtn = document.getElementById('mic-toggle-btn');
         if (isMuted) {
             micBtn.classList.remove('active');
             micBtn.innerHTML = '<i class="fas fa-microphone-slash"></i>';
         } else {
-            micBtn.classList.add('active');
+            micBtn.classList.add('active'); // Green
             micBtn.innerHTML = '<i class="fas fa-microphone"></i>';
         }
     },
 
     appendChatMessage: function(msg) {
         const chatArea = document.getElementById('chat-messages');
-        const div = document.createElement('div');
-        div.className = 'msg';
+        const div = document.createElement('div'); div.className = 'msg';
         div.innerHTML = `<span class="msg-user">${msg.username}:</span> <span class="msg-text">${msg.text}</span>`;
         chatArea.appendChild(div);
         chatArea.parentElement.scrollTop = chatArea.parentElement.scrollHeight;
     },
 
-    sendEmoji: function(emoji) {
-        if (this.currentRoomId) FirebaseDB.sendMessage(this.currentRoomId, this.user, emoji);
-    },
-
-    minimizeRoom: function() {
-        document.getElementById('room-screen').classList.remove('active');
-        document.getElementById('home-screen').classList.add('active');
-        document.getElementById('minimized-widget').classList.remove('hidden');
-    },
-
-    restoreRoom: function() {
-        document.getElementById('home-screen').classList.remove('active');
-        document.getElementById('room-screen').classList.add('active');
-        document.getElementById('minimized-widget').classList.add('hidden');
-    },
+    sendEmoji: function(emoji) { if (this.currentRoomId) FirebaseDB.sendMessage(this.currentRoomId, this.user, emoji); },
+    minimizeRoom: function() { document.getElementById('room-screen').classList.remove('active'); document.getElementById('home-screen').classList.add('active'); document.getElementById('minimized-widget').classList.remove('hidden'); },
+    restoreRoom: function() { document.getElementById('home-screen').classList.remove('active'); document.getElementById('room-screen').classList.add('active'); document.getElementById('minimized-widget').classList.add('hidden'); },
 
     exitRoom: async function() {
         if(!this.currentRoomId) return;
-        this.playBeep(300); 
-
         await AgoraVoice.leaveChannel();
         FirebaseDB.stopListening(this.currentRoomId);
-        
         await FirebaseDB.leaveRoom(this.currentRoomId, this.user.id, this.mySeatIndex);
         
         this.currentRoomId = null; this.mySeatIndex = null; this.isHost = false; this.hostId = null;
@@ -317,11 +242,7 @@ const app = {
         document.getElementById('mic-toggle-btn').classList.add('hidden');
     },
 
-    shareRoom: function() {
-        navigator.clipboard.writeText(window.location.href).then(() => {
-            this.showToast("Room link copied to clipboard!");
-        });
-    }
+    shareRoom: function() { navigator.clipboard.writeText(window.location.href).then(() => { this.showToast("Room link copied to clipboard!"); }); }
 };
 
 window.onload = () => app.init();
