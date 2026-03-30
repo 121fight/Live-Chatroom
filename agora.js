@@ -55,7 +55,7 @@ window.AgoraVoice = {
     forceMuteAudio: async function() {
         if (localAudioTrack && localAudioTrack.isPlaying) {
             await localAudioTrack.setMuted(true);
-            return true; // it is now muted
+            return true;
         }
         return true;
     },
