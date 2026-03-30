@@ -1,4 +1,3 @@
-// Firebase Configuration provided
 const firebaseConfig = {
     apiKey: "AIzaSyCdAfNCXamS4N-fW9v_mh2DcbdfCarG5-Y",
     authDomain: "livechatroom-f2b87.firebaseapp.com",
@@ -9,7 +8,6 @@ const firebaseConfig = {
     measurementId: "G-EGH38K7Z97"
 };
 
-// Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
@@ -18,26 +16,18 @@ window.FirebaseDB = {
         const roomRef = db.ref('rooms').push();
         const roomId = roomRef.key;
         
-        // Initialize 8 empty seats
         let seats = {};
         for(let i=0; i<8; i++) { seats[i] = { isOccupied: false }; }
         
-        // Host gets seat 0
+        // Host gets seat 0 automatically
         seats[0] = {
-            isOccupied: true,
-            userId: hostUser.id,
-            username: hostUser.username,
-            avatar: hostUser.avatar,
-            isMuted: true
+            isOccupied: true, userId: hostUser.id, username: hostUser.username,
+            avatar: hostUser.avatar, isMuted: true, forceMuted: false
         };
 
         await roomRef.set({
-            id: roomId,
-            title: title,
-            hostId: hostUser.id,
-            listeners: 1,
-            createdAt: firebase.database.ServerValue.TIMESTAMP,
-            seats: seats
+            id: roomId, title: title, hostId: hostUser.id,
+            listeners: 1, createdAt: firebase.database.ServerValue.TIMESTAMP, seats: seats
         });
         return roomId;
     },
@@ -45,26 +35,19 @@ window.FirebaseDB = {
     listenToRooms: function(callback) {
         return db.ref('rooms').on('value', snapshot => {
             const rooms = [];
-            snapshot.forEach(child => {
-                rooms.push(child.val());
-            });
+            snapshot.forEach(child => { rooms.push(child.val()); });
             callback(rooms.reverse());
         });
     },
 
     joinRoom: async function(roomId) {
-        const roomRef = db.ref(`rooms/${roomId}`);
-        await roomRef.child('listeners').set(firebase.database.ServerValue.increment(1));
+        await db.ref(`rooms/${roomId}/listeners`).set(firebase.database.ServerValue.increment(1));
     },
 
     leaveRoom: async function(roomId, userId, seatIndex) {
         if (!roomId) return;
-        const roomRef = db.ref(`rooms/${roomId}`);
-        await roomRef.child('listeners').set(firebase.database.ServerValue.increment(-1));
-        
-        if (seatIndex !== null) {
-            await this.leaveSeat(roomId, seatIndex);
-        }
+        await db.ref(`rooms/${roomId}/listeners`).set(firebase.database.ServerValue.increment(-1));
+        if (seatIndex !== null) { await this.leaveSeat(roomId, seatIndex); }
     },
 
     listenToRoomData: function(roomId, callback) {
@@ -74,38 +57,41 @@ window.FirebaseDB = {
     },
 
     takeSeat: async function(roomId, seatIndex, user) {
-        const seatRef = db.ref(`rooms/${roomId}/seats/${seatIndex}`);
-        await seatRef.set({
-            isOccupied: true,
-            userId: user.id,
-            username: user.username,
-            avatar: user.avatar,
-            isMuted: true
+        await db.ref(`rooms/${roomId}/seats/${seatIndex}`).set({
+            isOccupied: true, userId: user.id, username: user.username,
+            avatar: user.avatar, isMuted: true, forceMuted: false
         });
     },
 
     leaveSeat: async function(roomId, seatIndex) {
-        const seatRef = db.ref(`rooms/${roomId}/seats/${seatIndex}`);
-        await seatRef.set({ isOccupied: false });
+        await db.ref(`rooms/${roomId}/seats/${seatIndex}`).set({ isOccupied: false });
     },
 
     updateMuteState: async function(roomId, seatIndex, isMuted) {
-        const seatRef = db.ref(`rooms/${roomId}/seats/${seatIndex}`);
-        await seatRef.child('isMuted').set(isMuted);
+        await db.ref(`rooms/${roomId}/seats/${seatIndex}/isMuted`).set(isMuted);
+    },
+
+    // Admin Controls
+    adminKickUser: async function(roomId, seatIndex) {
+        await db.ref(`rooms/${roomId}/seats/${seatIndex}`).set({ isOccupied: false });
+    },
+
+    adminMuteUser: async function(roomId, seatIndex) {
+        await db.ref(`rooms/${roomId}/seats/${seatIndex}`).update({
+            isMuted: true,
+            forceMuted: Date.now() // Timestap triggers state change for target user
+        });
     },
 
     sendMessage: async function(roomId, user, text) {
-        const chatRef = db.ref(`rooms/${roomId}/chat`).push();
-        await chatRef.set({
-            userId: user.id,
-            username: user.username,
-            text: text,
+        await db.ref(`rooms/${roomId}/chat`).push().set({
+            userId: user.id, username: user.username, text: text,
             timestamp: firebase.database.ServerValue.TIMESTAMP
         });
     },
 
     listenToChat: function(roomId, callback) {
-        return db.ref(`rooms/${roomId}/chat`).limitToLast(30).on('child_added', snapshot => {
+        return db.ref(`rooms/${roomId}/chat`).limitToLast(40).on('child_added', snapshot => {
             callback(snapshot.val());
         });
     },
