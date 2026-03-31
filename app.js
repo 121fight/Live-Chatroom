@@ -1,19 +1,17 @@
 const app = {
-    user: null, currentRoomId: null, mySeatIndex: null, isHost: false, hostId: null, adminTargetSeat: null,
+    user: null, currentRoomId: null, mySeatIndex: null, isHost: false, hostId: null, tempAvatar: "",
 
     init: function() {
-        this.checkAuth(); this.setupEventListeners(); this.disableBackButton();
-        this.playBeep = (freq = 600) => {
-            try {
-                const ctx = new (window.AudioContext || window.webkitAudioContext)();
-                const osc = ctx.createOscillator(); const gain = ctx.createGain();
-                osc.connect(gain); gain.connect(ctx.destination);
-                osc.frequency.value = freq; osc.type = "sine";
-                gain.gain.setValueAtTime(0.05, ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
-                osc.start(); osc.stop(ctx.currentTime + 0.3);
-            } catch(e){}
-        };
+        this.checkAuth(); this.setupEventListeners();
+        
+        // Deep Link Check (?room=xyz)
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomToJoin = urlParams.get('room');
+        if(roomToJoin && this.user) {
+            this.enterRoom(roomToJoin, "Shared Room", null); // Auto Join
+            window.history.replaceState({}, document.title, window.location.pathname); // Link clean karo
+        }
+
         FirebaseDB.listenToRooms((rooms) => { this.renderRoomsList(rooms); });
     },
 
@@ -23,37 +21,55 @@ const app = {
             this.user = JSON.parse(savedUser);
             document.getElementById('auth-modal').classList.add('hidden');
             document.getElementById('my-avatar').src = this.user.avatar;
+            // Profile modal data set
+            document.getElementById('edit-username').value = this.user.username;
+            document.getElementById('edit-avatar-preview').src = this.user.avatar;
+            this.tempAvatar = this.user.avatar;
         } else { document.getElementById('auth-modal').classList.remove('hidden'); }
+    },
+
+    // Mobile Hardware Back Button (Triggered by Android Java)
+    onHardwareBack: function() {
+        if(this.currentRoomId && document.getElementById('room-screen').classList.contains('active')) {
+            document.getElementById('back-modal').classList.remove('hidden');
+        } else {
+            if(window.Android) window.Android.closeApp();
+        }
     },
 
     setupEventListeners: function() {
         document.getElementById('save-user-btn').addEventListener('click', () => {
             const username = document.getElementById('username-input').value.trim();
-            if (username.length < 3) { this.showToast("Username must be at least 3 characters"); return; }
+            if (username.length < 3) return;
             const avatar = `https://api.dicebear.com/7.x/adventurer/svg?seed=${username}`;
-            const uid = Math.floor(Math.random() * 1000000);
-            this.user = { id: uid, username, avatar };
+            this.user = { id: Math.floor(Math.random() * 1000000), username, avatar, gender: "Male" };
             localStorage.setItem('chatUser', JSON.stringify(this.user));
-            document.getElementById('auth-modal').classList.add('hidden');
-            document.getElementById('my-avatar').src = this.user.avatar;
-            this.showToast(`Welcome, ${username}!`);
+            location.reload(); // Reload to check deep links
         });
 
         document.getElementById('chat-form').addEventListener('submit', (e) => {
             e.preventDefault(); const input = document.getElementById('chat-input');
-            const text = input.value.trim();
-            if (text && this.currentRoomId) { FirebaseDB.sendMessage(this.currentRoomId, this.user, text); input.value = ''; }
+            if (input.value.trim() && this.currentRoomId) { FirebaseDB.sendMessage(this.currentRoomId, this.user, input.value.trim()); input.value = ''; }
         });
     },
 
-    disableBackButton: function() {
-        history.pushState(null, document.title, location.href);
-        window.addEventListener('popstate', () => {
-            history.pushState(null, document.title, location.href);
-            if(this.currentRoomId && document.getElementById('room-screen').classList.contains('active')) {
-                this.showToast("Use Minimize or Exit button to leave.");
-            }
-        });
+    // Profile Settings
+    randomizeAvatar: function() {
+        this.tempAvatar = `https://api.dicebear.com/7.x/adventurer/svg?seed=${Math.random()}`;
+        document.getElementById('edit-avatar-preview').src = this.tempAvatar;
+    },
+    saveProfile: function() {
+        const newName = document.getElementById('edit-username').value.trim();
+        const newGender = document.getElementById('edit-gender').value;
+        if(newName.length > 2) {
+            this.user.username = newName;
+            this.user.avatar = this.tempAvatar;
+            this.user.gender = newGender;
+            localStorage.setItem('chatUser', JSON.stringify(this.user));
+            document.getElementById('my-avatar').src = this.user.avatar;
+            document.getElementById('profile-modal').classList.add('hidden');
+            this.showToast("Profile Updated!");
+        }
     },
 
     showToast: function(msg) {
@@ -64,7 +80,6 @@ const app = {
 
     renderRoomsList: function(rooms) {
         const list = document.getElementById('rooms-list'); list.innerHTML = '';
-        if (rooms.length === 0) { list.innerHTML = '<div class="loading-text" style="text-align:center; color:#a0a4b8;">No active rooms. Create one!</div>'; return; }
         rooms.forEach(room => {
             if(!room) return;
             const card = document.createElement('div'); card.className = 'room-card';
@@ -90,9 +105,10 @@ const app = {
         document.getElementById('chat-messages').innerHTML = '';
         
         this.currentRoomId = roomId; this.hostId = hostId; this.isHost = (this.user.id === hostId);
-        this.playBeep(800);
         
-        // Agar Agora join fail hoga toh error batayega
+        // Android Notification Text Update
+        if(window.Android) window.Android.updateNotification("Live: " + title);
+
         const isJoined = await AgoraVoice.joinChannel(roomId, this.user.id);
         if(!isJoined) return;
 
@@ -100,8 +116,9 @@ const app = {
         if (isCreating) { await this.joinMic(0); }
 
         FirebaseDB.listenToRoomData(roomId, (data) => {
-            if(!data) { this.exitRoom(); return; } 
+            if(!data) { this.exitRoom(true); return; } // Agar room delete ho gaya toh auto exit
             document.getElementById('room-listeners').innerText = data.listeners || 0;
+            if(data.title) document.getElementById('current-room-title').innerText = data.title;
             this.handleSeatUpdates(data.seats);
         });
 
@@ -112,18 +129,15 @@ const app = {
         if (this.mySeatIndex !== null) {
             const mySeat = seatsData[this.mySeatIndex];
             if (!mySeat || !mySeat.isOccupied || mySeat.userId !== this.user.id) {
-                this.showToast("Admin kicked you.");
-                await AgoraVoice.unpublishAudio();
-                this.mySeatIndex = null;
+                await AgoraVoice.unpublishAudio(); this.mySeatIndex = null;
                 document.getElementById('mic-toggle-btn').classList.add('hidden');
             } 
             else if (mySeat.forceMuted) {
                 await AgoraVoice.forceMuteAudio();
                 await FirebaseDB.updateMuteState(this.currentRoomId, this.mySeatIndex, true);
-                const micBtn = document.getElementById('mic-toggle-btn');
-                micBtn.classList.remove('active'); micBtn.innerHTML = '<i class="fas fa-microphone-slash"></i>';
+                document.getElementById('mic-toggle-btn').classList.remove('active');
+                document.getElementById('mic-toggle-btn').innerHTML = '<i class="fas fa-microphone-slash"></i>';
                 firebase.database().ref(`rooms/${this.currentRoomId}/seats/${this.mySeatIndex}/forceMuted`).set(false);
-                this.showToast("Admin muted you.");
             }
         }
         this.renderSeatsUI(seatsData);
@@ -133,19 +147,14 @@ const app = {
         const grid = document.getElementById('mic-grid'); grid.innerHTML = '';
         for (let i = 0; i < 8; i++) {
             const seat = seatsData[i]; const div = document.createElement('div');
-            
             if (seat && seat.isOccupied) {
-                if (seat.userId === this.user.id) {
-                    this.mySeatIndex = i;
-                    document.getElementById('mic-toggle-btn').classList.remove('hidden');
-                }
+                if (seat.userId === this.user.id) { this.mySeatIndex = i; document.getElementById('mic-toggle-btn').classList.remove('hidden'); }
                 div.className = `seat ${seat.isMuted ? 'muted' : ''}`; div.dataset.uid = seat.userId;
                 let hostBadge = seat.userId === this.hostId ? `<div class="seat-host-badge">HOST</div>` : '';
                 div.innerHTML = `${hostBadge}<div class="seat-avatar"><img src="${seat.avatar}"></div><div class="seat-name">${seat.username}</div>`;
                 div.onclick = () => this.handleSeatClick(i, seat);
             } else {
-                div.className = 'seat empty';
-                div.innerHTML = `<div class="seat-avatar"><i class="fas fa-plus"></i></div><div class="seat-name">Seat ${i+1}</div>`;
+                div.className = 'seat empty'; div.innerHTML = `<div class="seat-avatar"><i class="fas fa-plus"></i></div><div class="seat-name">Seat ${i+1}</div>`;
                 div.onclick = () => this.joinMic(i);
             }
             grid.appendChild(div);
@@ -161,48 +170,35 @@ const app = {
             document.getElementById('admin-modal').classList.remove('hidden');
         }
     },
-
     closeAdminModal: function() { document.getElementById('admin-modal').classList.add('hidden'); this.adminTargetSeat = null; },
-    executeAdminMute: async function() { if (this.adminTargetSeat !== null) { await FirebaseDB.adminMuteUser(this.currentRoomId, this.adminTargetSeat); } this.closeAdminModal(); },
-    executeAdminKick: async function() { if (this.adminTargetSeat !== null) { await FirebaseDB.adminKickUser(this.currentRoomId, this.adminTargetSeat); } this.closeAdminModal(); },
+    executeAdminMute: async function() { if (this.adminTargetSeat !== null) await FirebaseDB.adminMuteUser(this.currentRoomId, this.adminTargetSeat); this.closeAdminModal(); },
+    executeAdminKick: async function() { if (this.adminTargetSeat !== null) await FirebaseDB.adminKickUser(this.currentRoomId, this.adminTargetSeat); this.closeAdminModal(); },
 
     joinMic: async function(seatIndex) {
         if(this.mySeatIndex !== null) return;
-        this.showToast("Connecting Mic...");
-        
         const success = await AgoraVoice.publishAudio();
         if (success) {
             await FirebaseDB.takeSeat(this.currentRoomId, seatIndex, this.user);
             this.mySeatIndex = seatIndex;
-            const micBtn = document.getElementById('mic-toggle-btn');
-            micBtn.classList.remove('hidden', 'active');
-            micBtn.innerHTML = '<i class="fas fa-microphone-slash"></i>';
-            this.showToast("Live!");
-        } else {
-            this.showToast("Mic connect nahi ho paya.");
+            document.getElementById('mic-toggle-btn').classList.remove('hidden', 'active');
+            document.getElementById('mic-toggle-btn').innerHTML = '<i class="fas fa-microphone-slash"></i>';
         }
     },
 
     leaveMic: async function() {
-        if (confirm("Step down?")) {
-            await AgoraVoice.unpublishAudio();
-            try { await FirebaseDB.leaveSeat(this.currentRoomId, this.mySeatIndex); } catch(e){}
-            this.mySeatIndex = null;
-            document.getElementById('mic-toggle-btn').classList.add('hidden');
-        }
+        await AgoraVoice.unpublishAudio();
+        try { await FirebaseDB.leaveSeat(this.currentRoomId, this.mySeatIndex); } catch(e){}
+        this.mySeatIndex = null;
+        document.getElementById('mic-toggle-btn').classList.add('hidden');
     },
 
     toggleMic: async function() {
         if(this.mySeatIndex === null) return;
         const isMuted = await AgoraVoice.toggleMic();
         await FirebaseDB.updateMuteState(this.currentRoomId, this.mySeatIndex, isMuted);
-        
         const micBtn = document.getElementById('mic-toggle-btn');
-        if (isMuted) {
-            micBtn.classList.remove('active'); micBtn.innerHTML = '<i class="fas fa-microphone-slash"></i>';
-        } else {
-            micBtn.classList.add('active'); micBtn.innerHTML = '<i class="fas fa-microphone"></i>';
-        }
+        if (isMuted) { micBtn.classList.remove('active'); micBtn.innerHTML = '<i class="fas fa-microphone-slash"></i>'; } 
+        else { micBtn.classList.add('active'); micBtn.innerHTML = '<i class="fas fa-microphone"></i>'; }
     },
 
     appendChatMessage: function(msg) {
@@ -212,13 +208,27 @@ const app = {
         chatArea.appendChild(div); chatArea.parentElement.scrollTop = chatArea.parentElement.scrollHeight;
     },
 
-    sendEmoji: function(emoji) { if (this.currentRoomId) FirebaseDB.sendMessage(this.currentRoomId, this.user, emoji); },
-    minimizeRoom: function() { document.getElementById('room-screen').classList.remove('active'); document.getElementById('home-screen').classList.add('active'); document.getElementById('minimized-widget').classList.remove('hidden'); },
-    restoreRoom: function() { document.getElementById('home-screen').classList.remove('active'); document.getElementById('room-screen').classList.add('active'); document.getElementById('minimized-widget').classList.add('hidden'); },
+    minimizeRoom: function() { 
+        document.getElementById('room-screen').classList.remove('active'); 
+        document.getElementById('home-screen').classList.add('active'); 
+        document.getElementById('minimized-widget').classList.remove('hidden'); 
+    },
+    restoreRoom: function() { 
+        document.getElementById('home-screen').classList.remove('active'); 
+        document.getElementById('room-screen').classList.add('active'); 
+        document.getElementById('minimized-widget').classList.add('hidden'); 
+    },
 
-    exitRoom: async function() {
+    exitRoom: async function(force = false) {
         if(!this.currentRoomId) return;
-        this.playBeep(300); 
+        
+        // Agar host exit dabata hai, toh room delete hoga
+        if(this.isHost && !force) {
+            if(confirm("End Room? Ye chatroom sabke liye band ho jayega.")) {
+                await FirebaseDB.deleteRoom(this.currentRoomId);
+            } else return;
+        }
+
         await AgoraVoice.leaveChannel();
         FirebaseDB.stopListening(this.currentRoomId);
         try { await FirebaseDB.leaveRoom(this.currentRoomId, this.user.id, this.mySeatIndex); } catch(e){}
@@ -228,9 +238,20 @@ const app = {
         document.getElementById('home-screen').classList.add('active');
         document.getElementById('minimized-widget').classList.add('hidden');
         document.getElementById('mic-toggle-btn').classList.add('hidden');
+
+        // Notification wapas normal
+        if(window.Android) window.Android.updateNotification("Voice Chat Active");
     },
 
-    shareRoom: function() { navigator.clipboard.writeText(window.location.href).then(() => { this.showToast("Link Copied!"); }); }
+    // WhatsApp Share aur Deep Linking
+    shareRoom: function() { 
+        const link = window.location.origin + window.location.pathname + "?room=" + this.currentRoomId;
+        if(window.Android) {
+            window.Android.shareToWhatsApp(link); // Native Android Share
+        } else {
+            navigator.clipboard.writeText(link).then(() => { this.showToast("Link Copied!"); }); 
+        }
+    }
 };
 
 window.onload = () => app.init();
