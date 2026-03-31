@@ -1,4 +1,4 @@
-const APP_ID = "3f3b61c4b24c4772b3e41c4f8e75f61c";
+const APP_ID = "9fcd4c0b88a943bfa9c477f78e00a45d";
 const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
 let localAudioTrack = null;
 let isMicMutedLocal = true; 
