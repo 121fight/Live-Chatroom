@@ -1,4 +1,5 @@
-const APP_ID = "9fcd4c0b88a943bfa9c477f78e00a45d";
+// Aapka Naya Testing Mode wala APP ID
+const APP_ID = "9fcd4c0b88a943bfa9c477f78e00a45d"; 
 const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
 let localAudioTrack = null;
 let isMicMutedLocal = true; 
@@ -8,6 +9,8 @@ client.enableAudioVolumeIndicator();
 window.AgoraVoice = {
     joinChannel: async function(channelName, uid) {
         try {
+            console.log("Joining Agora Room:", channelName);
+            // Bina Token (null) ke join karna
             await client.join(APP_ID, channelName, null, uid);
             
             client.on("user-published", async (user, mediaType) => {
@@ -29,22 +32,21 @@ window.AgoraVoice = {
             return true;
         } catch (error) { 
             console.error("Agora join failed:", error);
-            alert("Agora Server Error: Connection fail ho gaya. Kripya check karein ki aapka Agora project 'Testing Mode' (Without Certificate) par hai ya nahi.");
+            // NAYA ERROR MESSAGE (Taki actual technical problem dikhe)
+            alert("Agora Error: " + (error.message || error.code || "Server Connection Failed"));
             return false;
         }
     },
 
     publishAudio: async function() {
-        // Step 1: Pehle sirf Mic access check karenge
         try {
             localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack({ encoderConfig: "high_quality" });
         } catch (error) {
             console.error("Mic Access Error:", error);
-            alert("Mic Error: Permission ON hai par Mic kaam nahi kar raha. Kripya background me chal rahe Call ya Screen Recorder ko band karein.");
+            alert("Mic Blocked! Chrome settings me mic allow karein aur doosre call/recorder band karein.");
             return false;
         }
 
-        // Step 2: Mic aane ke baad aawaz ko server par bhejenge
         try {
             await client.publish([localAudioTrack]);
             isMicMutedLocal = true;
@@ -52,7 +54,7 @@ window.AgoraVoice = {
             return true;
         } catch (error) {
             console.error("Publish Error:", error);
-            alert("Voice Publish Error: " + error.message);
+            alert("Mic Publish Error: " + error.message);
             return false;
         }
     },
