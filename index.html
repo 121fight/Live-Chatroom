@@ -4,31 +4,50 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Live Voice Rooms</title>
-    <!-- Fonts & Icons -->
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
-
-    <!-- Firebase v8 CDN -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-    
-    <!-- Agora Web SDK -->
     <script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.18.2.js"></script>
 </head>
 <body>
 
-    <!-- Username Registration Modal -->
+    <!-- Auth Modal -->
     <div id="auth-modal" class="modal flex-center">
         <div class="modal-content">
-            <h2>Welcome</h2>
-            <p>Enter a username to continue</p>
+            <h2>Welcome</h2><p>Enter details to continue</p>
             <input type="text" id="username-input" placeholder="e.g. Rahul_07" maxlength="15">
             <button id="save-user-btn" class="btn primary-btn">Enter Chatrooms</button>
         </div>
     </div>
 
-    <!-- Admin Action Modal (Mute/Kick) -->
+    <!-- Mobile Hardware Back Modal (Minimize/Exit) -->
+    <div id="back-modal" class="modal flex-center hidden">
+        <div class="modal-content">
+            <h3>Room Options</h3>
+            <button class="btn primary-btn" onclick="app.minimizeRoom(); document.getElementById('back-modal').classList.add('hidden')">⬇️ Minimize Room</button>
+            <button class="btn danger-btn" onclick="app.exitRoom(); document.getElementById('back-modal').classList.add('hidden')">❌ Exit Room</button>
+            <button class="btn secondary-btn" onclick="document.getElementById('back-modal').classList.add('hidden')">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Profile Edit Modal -->
+    <div id="profile-modal" class="modal flex-center hidden">
+        <div class="modal-content">
+            <h3>My Profile</h3>
+            <img id="edit-avatar-preview" src="" style="width:70px; height:70px; border-radius:50%; margin:10px auto; display:block; border: 2px solid #00f5d4;">
+            <button class="btn secondary-btn" onclick="app.randomizeAvatar()" style="font-size:12px; padding:8px;">🎲 Change DP</button>
+            <input type="text" id="edit-username" placeholder="New Username" maxlength="15">
+            <select id="edit-gender" style="width:100%; padding:12px; margin-bottom:15px; background:#0d0f1a; color:white; border:none; border-radius:10px;">
+                <option value="Male">Male</option><option value="Female">Female</option>
+            </select>
+            <button class="btn primary-btn" onclick="app.saveProfile()">Save Changes</button>
+            <button class="btn danger-btn" onclick="document.getElementById('profile-modal').classList.add('hidden')">Close</button>
+        </div>
+    </div>
+
+    <!-- Admin Modal -->
     <div id="admin-modal" class="modal flex-center hidden">
         <div class="modal-content admin-box">
             <h3 id="admin-target-name">User Options</h3>
@@ -42,88 +61,60 @@
     <div id="home-screen" class="screen active">
         <header class="home-header">
             <h2><i class="fas fa-microphone-alt"></i> Voice Rooms</h2>
-            <div class="user-profile-mini">
+            <div class="user-profile-mini" onclick="document.getElementById('profile-modal').classList.remove('hidden')">
                 <img id="my-avatar" src="" alt="avatar">
             </div>
         </header>
 
         <div class="content-area">
             <div class="trending-section">
-                <h3>Trending Now <i class="fas fa-fire" style="color: #ff5e00;"></i></h3>
                 <div id="minimized-widget" class="hidden" onclick="app.restoreRoom()">
                     <div class="widget-content">
-                        <div class="pulse-ring"></div>
-                        <span>Return to active room</span>
+                        <div class="pulse-ring"></div><span>Return to active room</span>
                     </div>
                 </div>
             </div>
-
-            <div class="rooms-list" id="rooms-list">
-                <div class="loading-text">Loading rooms...</div>
-            </div>
+            <div class="rooms-list" id="rooms-list"></div>
         </div>
 
         <button class="fab" onclick="app.createNewRoom()"><i class="fas fa-plus"></i></button>
 
         <nav class="bottom-nav">
             <div class="nav-item active"><i class="fas fa-home"></i><span>Home</span></div>
-            <div class="nav-item"><i class="fas fa-compass"></i><span>Explore</span></div>
-            <div class="nav-item"><i class="fas fa-bell"></i><span>Alerts</span></div>
-            <div class="nav-item"><i class="fas fa-user"></i><span>Profile</span></div>
+            <div class="nav-item" onclick="document.getElementById('profile-modal').classList.remove('hidden')"><i class="fas fa-user"></i><span>Profile</span></div>
         </nav>
     </div>
 
     <!-- Room Screen -->
     <div id="room-screen" class="screen">
-        
-        <!-- DIRECT IMAGE BACKGROUND (No upload needed) -->
         <img id="room-bg" src="https://images.unsplash.com/photo-1557682250-33bd709cbe85?q=80&w=1080&auto=format&fit=crop" alt="background">
-        
-        <!-- UI Wrapper for Glassmorphism -->
         <div class="room-ui-wrapper">
             <div class="room-header">
                 <div class="room-actions">
-                    <button class="icon-btn minimize-btn" onclick="app.minimizeRoom()" title="Minimize"><i class="fas fa-compress-alt"></i></button>
+                    <button class="icon-btn minimize-btn" onclick="app.minimizeRoom()"><i class="fas fa-compress-alt"></i></button>
                     <div class="room-info">
                         <h3 id="current-room-title">Room Title</h3>
                         <span class="listener-count"><i class="fas fa-headphones"></i> <span id="room-listeners">0</span></span>
                     </div>
                     <div class="right-actions">
-                        <button class="icon-btn share-btn" onclick="app.shareRoom()"><i class="fas fa-share-alt"></i></button>
-                        <button class="icon-btn exit-btn" onclick="app.exitRoom()" title="Exit"><i class="fas fa-sign-out-alt"></i></button>
+                        <button class="icon-btn share-btn" onclick="app.shareRoom()"><i class="fab fa-whatsapp" style="color:#25D366;"></i></button>
+                        <button class="icon-btn exit-btn" onclick="app.exitRoom()"><i class="fas fa-sign-out-alt"></i></button>
                     </div>
                 </div>
             </div>
-
-            <!-- 8 Mic Seats Grid -->
-            <div class="mic-seats-container">
-                <div class="mic-grid" id="mic-grid">
-                    <!-- Seats generated by JS -->
-                </div>
-            </div>
-
-            <!-- Chat Area -->
-            <div class="chat-container">
-                <div class="chat-messages" id="chat-messages">
-                    <!-- Messages -->
-                </div>
-            </div>
-
-            <!-- Bottom Controls -->
+            <div class="mic-seats-container"><div class="mic-grid" id="mic-grid"></div></div>
+            <div class="chat-container"><div class="chat-messages" id="chat-messages"></div></div>
             <div class="room-bottom-controls">
                 <button id="mic-toggle-btn" class="control-btn mic-btn hidden" onclick="app.toggleMic()"><i class="fas fa-microphone-slash"></i></button>
                 <form id="chat-form" class="chat-input-wrapper">
                     <input type="text" id="chat-input" placeholder="Type a message..." autocomplete="off">
                     <button type="submit" class="send-btn"><i class="fas fa-paper-plane"></i></button>
                 </form>
-                <button class="control-btn emoji-btn" onclick="app.sendEmoji('❤️')">❤️</button>
             </div>
         </div>
     </div>
 
-    <!-- Toast Notifications -->
     <div id="toast-container"></div>
-
     <script src="firebase.js"></script>
     <script src="agora.js"></script>
     <script src="app.js"></script>
